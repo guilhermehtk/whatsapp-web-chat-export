@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Generate WhatsApp Export Icons</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #111b21; color: #e9edef; }
+    button { padding: 10px 20px; background: #25d366; color: #111; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin-top: 12px; }
+    canvas { display: none; }
+    #status { margin-top: 12px; color: #aebac1; font-size: 13px; }
+    #preview { margin-top: 16px; background: #202c33; padding: 12px; border-radius: 8px; display: inline-block; }
+    #preview svg { display: block; }
+  </style>
+</head>
+<body>
+  <h2>Icon Generator</h2>
+  <p>Click the button to generate icon16.png, icon32.png, icon48.png, and icon128.png.</p>
+
+  <!-- Inline SVG source — edit this to change the icon -->
+  <div id="preview">
+    <svg id="source-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 148 148" width="128" height="128">
+      <circle cx="64" cy="64" r="64" fill="#25D366"/>
+      <path fill="white" d="M64 26C43.5 26 27 42.5 27 63c0 7.8 2.5 15 6.7 20.9L28 103l19.8-5.2A36.8 36.8 0 0064 100c20.5 0 37-16.5 37-37S84.5 26 64 26z"/>
+      <path fill="#25D366" d="M83.5 74.2c-.4-.2-4.8-2.4-5.6-2.7c-.8-.3-1.3-.4-1.9.4c-.6.9-2.2 2.7-2.7 3.2c-.5.6-1 .6-1.8.2c-.9-.4-3.6-1.3-6.8-4.2c-2.5-2.2-4.2-5-4.7-5.8c-.5-.9 0-1.4.4-1.8l1.1-1.4c.4-.5.5-.9.7-1.5c.3-.6.1-1.1-.1-1.5c-.2-.4-1.9-4.6-2.6-6.3c-.7-1.6-1.4-1.4-1.9-1.4l-1.6-.03c-.6 0-1.5.2-2.3 1c-.8.8-3 2.9-3 7.1s3.1 8.2 3.5 8.8c.4.5 6 9.2 14.6 12.9c2 .9 3.6 1.4 4.8 1.8c2 .6 3.9.5 5.3.3c1.6-.2 5-2 5.7-4c.7-1.9.7-3.5.5-3.8c-.2-.3-.7-.5-1.6-.8z"/>
+      <circle cx="112" cy="112" r="34" fill="white"/>
+      <g stroke="#25D366" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <line x1="112" y1="96" x2="112" y2="120"/>
+        <polyline points="100,109 112,121 124,109"/>
+        <line x1="99" y1="129" x2="125" y2="129"/>
+      </g>
+    </svg>
+  </div>
+
+  <br>
+  <button id="go">Generate &amp; Download All Sizes</button>
+  <div id="status"></div>
+  <canvas id="c"></canvas>
+
+  <script>
+    document.getElementById('go').addEventListener('click', async () => {
+      const status = document.getElementById('status');
+      const sizes = [16, 32, 48, 128];
+
+      status.textContent = 'Generating…';
+
+      // Serialize the inline SVG to a blob URL — no file:// fetch needed
+      const svgEl = document.getElementById('source-svg');
+      const serializer = new XMLSerializer();
+      const svgStr = serializer.serializeToString(svgEl);
+      const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+      const svgUrl = URL.createObjectURL(blob);
+
+      const img = new Image();
+      img.src = svgUrl;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(new Error('SVG failed to load'));
+      });
+
+      const canvas = document.getElementById('c');
+      const ctx = canvas.getContext('2d');
+
+      for (const size of sizes) {
+        canvas.width  = size;
+        canvas.height = size;
+        ctx.clearRect(0, 0, size, size);
+        ctx.drawImage(img, 0, 0, size, size);
+
+        await new Promise(resolve => canvas.toBlob(pngBlob => {
+          const url = URL.createObjectURL(pngBlob);
+          const a   = document.createElement('a');
+          a.href     = url;
+          a.download = `icon${size}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 3000);
+          resolve();
+        }, 'image/png'));
+
+        status.textContent = `Generated icon${size}.png`;
+        await new Promise(r => setTimeout(r, 150));
+      }
+
+      URL.revokeObjectURL(svgUrl);
+      status.textContent = 'Done! Place the downloaded PNGs in the icons/ folder.';
+    });
+  </script>
+</body>
+</html>
