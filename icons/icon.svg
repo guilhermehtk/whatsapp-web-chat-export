@@ -1,53 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 148 148" width="148" height="148">
-  <!-- Green background circle -->
-  <circle cx="64" cy="64" r="64" fill="#25D366"/>
-  <!-- White speech bubble (chat balloon with lower-left tail) -->
-  <path fill="white" d="
-    M64 26
-    C43.5 26 27 42.5 27 63
-    c0 7.8 2.5 15 6.7 20.9
-    L28 103
-    l19.8-5.2
-    A36.8 36.8 0 0064 100
-    c20.5 0 37-16.5 37-37
-    S84.5 26 64 26z
-  "/>
-  <!-- Phone handset inside bubble, in WhatsApp green -->
-  <path fill="#25D366" d="
-    M83.5 74.2
-    c-.4-.2-4.8-2.4-5.6-2.7
-    c-.8-.3-1.3-.4-1.9.4
-    c-.6.9-2.2 2.7-2.7 3.2
-    c-.5.6-1 .6-1.8.2
-    c-.9-.4-3.6-1.3-6.8-4.2
-    c-2.5-2.2-4.2-5-4.7-5.8
-    c-.5-.9 0-1.4.4-1.8
-    l1.1-1.4
-    c.4-.5.5-.9.7-1.5
-    c.3-.6.1-1.1-.1-1.5
-    c-.2-.4-1.9-4.6-2.6-6.3
-    c-.7-1.6-1.4-1.4-1.9-1.4
-    l-1.6-.03
-    c-.6 0-1.5.2-2.3 1
-    c-.8.8-3 2.9-3 7.1
-    s3.1 8.2 3.5 8.8
-    c.4.5 6 9.2 14.6 12.9
-    c2 .9 3.6 1.4 4.8 1.8
-    c2 .6 3.9.5 5.3.3
-    c1.6-.2 5-2 5.7-4
-    c.7-1.9.7-3.5.5-3.8
-    c-.2-.3-.7-.5-1.6-.8z
-  "/>
-
-  <!-- Export badge: white circle in bottom-right corner -->
-  <circle cx="112" cy="112" r="34" fill="white"/>
-  <!-- Export arrow (upward arrow + tray base) in green -->
-  <g stroke="#25D366" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <!-- Vertical stem -->
-    <line x1="112" y1="96" x2="112" y2="120"/>
-    <!-- Arrowhead pointing down -->
-    <polyline points="100,109 112,121 124,109"/>
-    <!-- Tray / base line -->
-    <line x1="99" y1="129" x2="125" y2="129"/>
-  </g>
+  <rect x="10" y="10" width="128" height="128" rx="28" fill="#2563EB"/>
+  <path d="M43 29h42l22 22v59a9 9 0 0 1-9 9H43a9 9 0 0 1-9-9V38a9 9 0 0 1 9-9z" fill="white"/>
+  <path d="M85 29v22h22" fill="#BFDBFE"/>
+  <path d="M53 69h35M53 82h27" stroke="#93C5FD" stroke-width="7" stroke-linecap="round"/>
+  <path d="M74 91v20m0 0-10-10m10 10 10-10M58 119h32" fill="none" stroke="#2563EB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

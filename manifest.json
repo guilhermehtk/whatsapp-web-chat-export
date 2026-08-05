@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "WhatsApp Web Chat Export",
-  "version": "1.0",
-  "description": "Export WhatsApp Web conversations to JSON, plain text, or HTML.",
-  "permissions": ["activeTab", "scripting", "downloads"],
+  "name": "Chat Exporter for WhatsApp Web",
+  "version": "1.1",
+  "description": "Export chats from WhatsApp Web to JSON, text, or HTML. Independent and not affiliated with WhatsApp or Meta.",
+  "permissions": ["activeTab"],
   "host_permissions": ["https://web.whatsapp.com/*"],
   "action": {
     "default_popup": "popup.html",

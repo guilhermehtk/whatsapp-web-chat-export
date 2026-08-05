@@ -1,6 +1,8 @@
-# WhatsApp Web Chat Export
+# Chat Exporter for WhatsApp Web
 
 A Chrome extension that exports WhatsApp Web conversations to **JSON**, **plain text**, or **self-contained HTML** (with embedded images).
+
+> Independent extension. Not affiliated with WhatsApp or Meta. WhatsApp is a trademark of its respective owner.
 
 ## Features
 
