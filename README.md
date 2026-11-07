@@ -39,6 +39,16 @@ A Chrome extension that exports WhatsApp Web conversations to **JSON**, **plain 
 
 > **Tip:** Use "Scroll all + export" for complete history. It takes longer but captures everything.
 
+### Export several chats
+
+1. Open WhatsApp Web (a chat does not need to be open) and click the extension icon
+2. Expand **Export several chats** and click **Load chat list**. The extension scrolls the sidebar to read every chat name
+3. Filter by name, tick the chats you want (or **Select all shown**), pick a format
+4. Click **Export selected**. Each chat is opened in turn, scrolled to the top, and saved as its own file, with a 2 to 4 second pause between chats
+5. **Stop** ends the run after the current chat. You can close the popup; the export keeps running, and reopening the popup shows its progress
+
+Chrome may ask once to allow multiple downloads from web.whatsapp.com.
+
 ## Export Formats
 
 ### JSON
@@ -75,6 +85,7 @@ A self-contained `.html` file styled like WhatsApp's dark theme. Photos are embe
 - **WhatsApp DOM changes:** Uses `data-pre-plain-text` attributes which have been stable for years, but WhatsApp occasionally updates its DOM. Open an issue if something breaks.
 - **Images:** The HTML export fetches images through your active WhatsApp session — no re-authentication needed. Only images already loaded in the browser are embedded.
 - **Reactions:** Captured when visible in the DOM. May not appear for very old messages that were never scrolled into view.
+- **Several chats:** Chats are found by their sidebar name, so two chats with the same name resolve to the first one in the list.
 
 ## Privacy
 

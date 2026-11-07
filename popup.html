@@ -107,6 +107,55 @@
     #status.error { color: #f28b82; }
     #status.ok    { color: #60a5fa; }
 
+    #multi {
+      margin-top: 10px;
+      border-top: 1px solid #334155;
+      padding-top: 10px;
+    }
+
+    #multi summary {
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
+
+    #chat-search {
+      width: 100%;
+      padding: 7px 10px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    #chat-list {
+      max-height: 180px;
+      overflow-y: auto;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+
+    #chat-list label, .select-all {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #e2e8f0;
+      font-size: 12px;
+      margin-bottom: 3px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #btn-load-chats, #btn-export-selected {
+      background: #334155;
+      color: #e2e8f0;
+    }
+
     .disclaimer {
       margin-top: 10px;
       color: #64748b;
@@ -135,9 +184,19 @@
   <button class="btn" id="btn-scroll-export" disabled>Scroll all + export</button>
   <button class="btn" id="btn-stop">Stop</button>
 
+  <details id="multi">
+    <summary>Export several chats</summary>
+    <button class="btn" id="btn-load-chats" disabled>Load chat list</button>
+    <input id="chat-search" type="search" placeholder="Filter by name" hidden>
+    <label class="select-all" hidden><input type="checkbox" id="select-all"> Select all shown</label>
+    <div id="chat-list"></div>
+    <button class="btn" id="btn-export-selected" disabled>Export selected (0)</button>
+  </details>
+
   <div id="status">Loading…</div>
   <p class="disclaimer">Independent extension. Not affiliated with WhatsApp or Meta.</p>
 
+  <script src="chat-list.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

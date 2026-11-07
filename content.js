@@ -15,9 +15,14 @@ const TEXT_SEL          = `span[dir="ltr"], span[dir="rtl"]`;
 const IMAGE_SEL         = 'img[src]';
 // System messages (e.g. "John joined") — usually in a div with role="row" but no data-pre-plain-text
 const SYSTEM_MSG_SEL    = 'div[role="row"] span[dir="ltr"]';
+// Left sidebar with the chat list (virtualized: only visible rows are in the DOM)
+const SIDEBAR_SEL       = '#pane-side';
+const CHAT_ROW_SEL      = '[role="listitem"], [role="row"]';
 
 // ─── State ─────────────────────────────────────────────────────────────────
 let isScrolling = false;
+// Progress of a multi-chat export, kept here so a reopened popup can show it
+let batch = null;
 
 // ─── Utilities ─────────────────────────────────────────────────────────────
 
@@ -592,6 +597,193 @@ ${rows}
   trigger(blob, `${slugify(chatName)}-${today()}.html`);
 }
 
+async function exportMessages(messages, chatName, format) {
+  if (format === 'json')       { downloadJSON(messages, chatName); }
+  else if (format === 'text')  { downloadText(messages, chatName); }
+  else if (format === 'html')  { await downloadHTML(messages, chatName); }
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+/** Scroll the open chat bottom to top and return every message seen, oldest first. */
+async function collectAllMessages(onProgress) {
+  const collected = new Map(); // key → message
+
+  const addMessages = (msgs) => {
+    for (const m of msgs) {
+      const key = `${m.sender}|${m.timestamp}|${m.text.slice(0, 60)}`;
+      if (!collected.has(key)) collected.set(key, m);
+    }
+    onProgress(collected.size);
+  };
+
+  const scrollEl = findScrollContainer();
+  let stableRounds = 0;
+  const MAX_STABLE = 10;
+  const SCROLL_WAIT_MS = 3500;
+
+  // Track the oldest visible message key instead of scrollHeight.
+  // Works for both real DOM growth AND virtual/fixed-height scroll containers,
+  // where scrollHeight stays constant while only the oldest DOM node changes.
+  const getOldestKey = () => {
+    const el = document.querySelector(`[${MESSAGE_ATTR}]`);
+    return el ? el.getAttribute(MESSAGE_ATTR) : null;
+  };
+
+  // ── Phase 1: scroll DOWN to capture the most recent messages ───────────
+  // Do this BEFORE disabling overflow-anchor.
+  // Each jump to 9999999 lands at the bottom of the currently-rendered virtual
+  // window. After WhatsApp loads the next batch, scrollHeight grows and the next
+  // jump reaches further. We repeat until scrollTop stops changing (true bottom).
+  // Capped at 8 rounds so this never takes more than ~12 seconds.
+  if (scrollEl) {
+    let prevTop = -1;
+    for (let i = 0; i < 8; i++) {
+      scrollEl.scrollTop = 9999999;
+      await sleep(1500);
+      addMessages(extractMessages());
+      const curTop = scrollEl.scrollTop;
+      if (curTop === prevTop) break; // no new content loaded, we're at the true bottom
+      prevTop = curTop;
+    }
+  }
+
+  // ── Phase 2: disable overflow-anchor, then scroll up to load history ──
+  // Only disable now — overflow-anchor was needed above so the browser could
+  // keep us at the bottom as WhatsApp appended new messages.
+  let savedAnchor = '';
+  if (scrollEl) {
+    savedAnchor = scrollEl.style.overflowAnchor;
+    scrollEl.style.overflowAnchor = 'none';
+  }
+
+  // Helper: nudge to top, ensuring a scroll event always fires even if already at 0.
+  const nudgeToTop = async () => {
+    if (scrollEl.scrollTop < 5) {
+      scrollEl.scrollTop = 80;
+      await sleep(120);
+    }
+    scrollEl.scrollTop = 0;
+  };
+
+  let lastOldestKey = '';
+
+  while (isScrolling) {
+    addMessages(extractMessages());
+
+    if (!scrollEl) break;
+
+    // First push — triggers WhatsApp to load the next batch of older messages
+    await nudgeToTop();
+    await sleep(1500);
+
+    // Second push mid-wait — in case WhatsApp needs another scroll event to load a second batch
+    await nudgeToTop();
+    await sleep(SCROLL_WAIT_MS - 1620);
+
+    const newOldestKey = getOldestKey();
+    if (newOldestKey === lastOldestKey) {
+      stableRounds++;
+      if (stableRounds >= MAX_STABLE) break; // Reached the top
+    } else {
+      stableRounds = 0;
+    }
+    lastOldestKey = newOldestKey;
+  }
+
+  // Restore original scroll anchoring behaviour
+  if (scrollEl) {
+    scrollEl.style.overflowAnchor = savedAnchor;
+  }
+
+  // Final capture
+  addMessages(extractMessages());
+
+  return [...collected.values()].sort((a, b) => a.tsNum - b.tsNum);
+}
+
+// ─── Chat list (sidebar) ────────────────────────────────────────────────────
+
+/** Scroll the sidebar top to bottom and return every chat name, in sidebar order. */
+async function listChats() {
+  const pane = document.querySelector(SIDEBAR_SEL);
+  if (!pane) throw new Error(`Chat list not found (expected ${SIDEBAR_SEL})`);
+  const names = new Set();
+  pane.scrollTop = 0;
+  await sleep(400);
+  let prevTop = -1;
+  while (pane.scrollTop !== prevTop) {
+    ChatList.visibleTitles(pane, CHAT_ROW_SEL).forEach(name => names.add(name));
+    prevTop = pane.scrollTop;
+    pane.scrollTop += Math.max(200, pane.clientHeight * 0.8);
+    await sleep(400);
+  }
+  ChatList.visibleTitles(pane, CHAT_ROW_SEL).forEach(name => names.add(name));
+  pane.scrollTop = 0;
+  return [...names];
+}
+
+/** Scroll the sidebar until a row titled `name` is rendered, and return it. */
+async function findChatRow(name) {
+  const pane = document.querySelector(SIDEBAR_SEL);
+  if (!pane) return null;
+  const visibleRow = () => [...pane.querySelectorAll(CHAT_ROW_SEL)].find(row => ChatList.rowTitle(row) === name);
+  pane.scrollTop = 0;
+  await sleep(400);
+  let prevTop = -1;
+  while (pane.scrollTop !== prevTop) {
+    const row = visibleRow();
+    if (row) return row;
+    prevTop = pane.scrollTop;
+    pane.scrollTop += Math.max(200, pane.clientHeight * 0.8);
+    await sleep(400);
+  }
+  return visibleRow() || null;
+}
+
+/** Open the chat titled `name` and wait until its header shows that name. */
+async function openChat(name) {
+  if (getChatName() === name) return;
+  const row = await findChatRow(name);
+  if (!row) throw new Error(`Chat "${name}" not found in the chat list`);
+  const target = row.querySelector('span[title]') || row;
+  // WhatsApp opens chats on mousedown; click alone is not always enough
+  target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+  target.click();
+  for (let waited = 0; waited < 10000; waited += 250) {
+    if (getChatName() === name && document.querySelector(`[${MESSAGE_ATTR}]`)) return;
+    await sleep(250);
+  }
+  throw new Error(`Chat "${name}" did not open within 10s (header shows "${getChatName()}")`);
+}
+
+/** Export each named chat in turn, one file per chat, pausing between chats. */
+async function exportChats(names, format) {
+  isScrolling = true;
+  batch = { total: names.length, done: 0, current: null, messages: 0, failed: [] };
+  const report = () => chrome.runtime.sendMessage({ action: 'batch_progress', ...batch }).catch(() => {});
+  for (const name of names) {
+    if (!isScrolling) break;
+    batch.current = name;
+    report();
+    try {
+      await openChat(name);
+      const messages = await collectAllMessages(count => { batch.messages = count; report(); });
+      await exportMessages(messages, name, format);
+    } catch (err) {
+      batch.failed.push({ name, error: err.message });
+    }
+    batch.done++;
+    report();
+    if (isScrolling && batch.done < batch.total) await sleep(ChatList.jitter(2000, 4000));
+  }
+  const summary = { ...batch, current: null, stopped: !isScrolling };
+  isScrolling = false;
+  batch = null;
+  chrome.runtime.sendMessage({ action: 'batch_done', ...summary }).catch(() => {});
+  return summary;
+}
+
 // ─── Message listener ───────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
@@ -601,7 +793,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
     if (msg.action === 'ping') {
       // Only respond OK if we're actually on a chat page (main panel present)
       const main = document.querySelector(MAIN_PANEL);
-      respond({ ok: !!main });
+      respond({ ok: !!main, sidebar: !!document.querySelector(SIDEBAR_SEL), batch });
+      return;
+    }
+
+    if (msg.action === 'list_chats') {
+      if (isScrolling) { respond({ error: 'An export is already running' }); return; }
+      try {
+        respond({ names: await listChats() });
+      } catch (err) {
+        respond({ error: err.message });
+      }
+      return;
+    }
+
+    if (msg.action === 'export_chats') {
+      if (isScrolling) { respond({ error: 'An export is already running' }); return; }
+      const names = Array.isArray(msg.names) ? msg.names.filter(n => typeof n === 'string') : [];
+      respond(await exportChats(names, msg.format || 'json'));
       return;
     }
 
@@ -629,108 +838,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
 
     if (msg.action === 'scroll_and_export') {
       isScrolling = true;
-      const format = msg.format || 'json';
-      const collected = new Map(); // key → message
-
-      const addMessages = (msgs) => {
-        for (const m of msgs) {
-          const key = `${m.sender}|${m.timestamp}|${m.text.slice(0, 60)}`;
-          if (!collected.has(key)) collected.set(key, m);
-        }
-      };
-
-      const scrollEl = findScrollContainer();
-      let stableRounds = 0;
-      const MAX_STABLE = 10;
-      const SCROLL_WAIT_MS = 3500;
-
-      // Track the oldest visible message key instead of scrollHeight.
-      // Works for both real DOM growth AND virtual/fixed-height scroll containers,
-      // where scrollHeight stays constant while only the oldest DOM node changes.
-      const getOldestKey = () => {
-        const el = document.querySelector(`[${MESSAGE_ATTR}]`);
-        return el ? el.getAttribute(MESSAGE_ATTR) : null;
-      };
-
-      // ── Phase 1: scroll DOWN to capture the most recent messages ───────────
-      // Do this BEFORE disabling overflow-anchor.
-      // Each jump to 9999999 lands at the bottom of the currently-rendered virtual
-      // window. After WhatsApp loads the next batch, scrollHeight grows and the next
-      // jump reaches further. We repeat until scrollTop stops changing (true bottom).
-      // Capped at 8 rounds so this never takes more than ~12 seconds.
-      if (scrollEl) {
-        let prevTop = -1;
-        for (let i = 0; i < 8; i++) {
-          scrollEl.scrollTop = 9999999;
-          await new Promise(r => setTimeout(r, 1500));
-          addMessages(extractMessages());
-          chrome.runtime.sendMessage({ action: 'scroll_progress', count: collected.size });
-          const curTop = scrollEl.scrollTop;
-          if (curTop === prevTop) break; // no new content loaded, we're at the true bottom
-          prevTop = curTop;
-        }
-      }
-
-      // ── Phase 2: disable overflow-anchor, then scroll up to load history ──
-      // Only disable now — overflow-anchor was needed above so the browser could
-      // keep us at the bottom as WhatsApp appended new messages.
-      let savedAnchor = '';
-      if (scrollEl) {
-        savedAnchor = scrollEl.style.overflowAnchor;
-        scrollEl.style.overflowAnchor = 'none';
-      }
-
-      // Helper: nudge to top, ensuring a scroll event always fires even if already at 0.
-      const nudgeToTop = async () => {
-        if (scrollEl.scrollTop < 5) {
-          scrollEl.scrollTop = 80;
-          await new Promise(r => setTimeout(r, 120));
-        }
-        scrollEl.scrollTop = 0;
-      };
-
-      let lastOldestKey = '';
-
-      while (isScrolling) {
-        addMessages(extractMessages());
-        chrome.runtime.sendMessage({ action: 'scroll_progress', count: collected.size });
-
-        if (!scrollEl) break;
-
-        // First push — triggers WhatsApp to load the next batch of older messages
-        await nudgeToTop();
-        await new Promise(r => setTimeout(r, 1500));
-
-        // Second push mid-wait — in case WhatsApp needs another scroll event to load a second batch
-        await nudgeToTop();
-        await new Promise(r => setTimeout(r, SCROLL_WAIT_MS - 1620));
-
-        const newOldestKey = getOldestKey();
-        if (newOldestKey === lastOldestKey) {
-          stableRounds++;
-          if (stableRounds >= MAX_STABLE) break; // Reached the top
-        } else {
-          stableRounds = 0;
-        }
-        lastOldestKey = newOldestKey;
-      }
-
-      // Restore original scroll anchoring behaviour
-      if (scrollEl) {
-        scrollEl.style.overflowAnchor = savedAnchor;
-      }
-
+      const final = await collectAllMessages(count => {
+        chrome.runtime.sendMessage({ action: 'scroll_progress', count }).catch(() => {});
+      });
       isScrolling = false;
-
-      // Final capture
-      addMessages(extractMessages());
-
-      const final = [...collected.values()].sort((a, b) => a.tsNum - b.tsNum);
-
-      if (format === 'json')  { downloadJSON(final, chatName); }
-      else if (format === 'text')  { downloadText(final, chatName); }
-      else if (format === 'html')  { await downloadHTML(final, chatName); }
-
+      await exportMessages(final, chatName, msg.format || 'json');
       respond({ count: final.length });
       return;
     }
