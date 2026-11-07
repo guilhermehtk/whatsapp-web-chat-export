@@ -14,6 +14,7 @@ const chatListEl     = document.getElementById('chat-list');
 
 let currentTabId = null;
 let chatOpen = false;
+let busy = false;
 let allChats = [];
 const selectedChats = new Set();
 
@@ -23,6 +24,7 @@ function setStatus(msg, type = '') {
 }
 
 function setScrolling(active) {
+  busy = active;
   btnExport.disabled       = active || !chatOpen;
   btnScrollExport.disabled = active || !chatOpen;
   btnStop.style.display    = active ? 'block' : 'none';
@@ -38,7 +40,7 @@ function showBatchProgress(b) {
 
 function updateSelectedCount() {
   btnExportSel.textContent = `Export selected (${selectedChats.size})`;
-  btnExportSel.disabled = selectedChats.size === 0;
+  btnExportSel.disabled = busy || selectedChats.size === 0;
 }
 
 function renderChatList() {
@@ -160,11 +162,11 @@ chrome.runtime.onMessage.addListener((msg) => {
       setStatus(`Starting export of ${names.length} chats…`);
       try {
         const result = await sendToContent('export_chats', { names, format: formatSelect.value });
-        if (result.error) setStatus(result.error, 'error');
-        else setStatus(describeBatchResult(result), result.failed.length ? 'error' : 'ok');
+        if (result.error) { setStatus(result.error, 'error'); return; }
+        setStatus(describeBatchResult(result), result.failed.length ? 'error' : 'ok');
+        setScrolling(false);
       } catch (err) {
         setStatus('Export failed: ' + err.message, 'error');
-      } finally {
         setScrolling(false);
       }
     });

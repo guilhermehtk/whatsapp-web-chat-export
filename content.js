@@ -798,7 +798,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
     }
 
     if (msg.action === 'list_chats') {
-      if (isScrolling) { respond({ error: 'An export is already running' }); return; }
+      if (isScrolling || batch) { respond({ error: 'An export is already running' }); return; }
       try {
         respond({ names: await listChats() });
       } catch (err) {
@@ -808,7 +808,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
     }
 
     if (msg.action === 'export_chats') {
-      if (isScrolling) { respond({ error: 'An export is already running' }); return; }
+      if (isScrolling || batch) { respond({ error: 'An export is already running' }); return; }
       const names = Array.isArray(msg.names) ? msg.names.filter(n => typeof n === 'string') : [];
       respond(await exportChats(names, msg.format || 'json'));
       return;
